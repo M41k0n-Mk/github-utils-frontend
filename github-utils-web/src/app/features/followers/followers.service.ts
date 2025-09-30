@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, map } from 'rxjs/operators';
 import { Follower } from './follower.model';
 import { environment } from '../../../environments/environment';
 
@@ -9,17 +9,14 @@ import { environment } from '../../../environments/environment';
   providedIn: 'root'
 })
 export class FollowersService {
-  private apiUrl = `${environment.apiUrl}/followers`;
+  private apiUrl = `${environment.apiUrl}/followers/non-followers`;
 
   constructor(private http: HttpClient) {}
 
-  /**
-   * Get followers for the authenticated user
-   * @returns Observable of Follower array
-   */
   getFollowers(): Observable<Follower[]> {
-    return this.http.get<Follower[]>(`${this.apiUrl}`)
+    return this.http.get<{ users: Follower[] }>(this.apiUrl)
       .pipe(
+        map((resp: { users: Follower[] }) => resp.users),
         catchError(this.handleError)
       );
   }
@@ -33,10 +30,8 @@ export class FollowersService {
     let errorMessage = 'An unknown error occurred';
     
     if (error.error instanceof ErrorEvent) {
-      // Client-side or network error
       errorMessage = `Error: ${error.error.message}`;
     } else {
-      // Backend error
       errorMessage = `Error Code: ${error.status}\nMessage: ${error.message}`;
     }
     

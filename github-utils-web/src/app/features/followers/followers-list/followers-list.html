@@ -1,5 +1,5 @@
 <div class="followers-container">
-  <h1 class="followers-title">GitHub Followers</h1>
+  <h1 class="followers-title">GitHub Non-Followers</h1>
 
   <!-- Loading State -->
   @if (loading()) {
@@ -17,7 +17,7 @@
         <line x1="12" y1="8" x2="12" y2="12"></line>
         <line x1="12" y1="16" x2="12.01" y2="16"></line>
       </svg>
-      <h2>Error Loading Followers</h2>
+      <h2>Error Loading Non-Followers</h2>
       <p>{{ error() }}</p>
       <button class="retry-button" (click)="retryLoad()">Try Again</button>
     </div>
@@ -32,37 +32,50 @@
         <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
         <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
       </svg>
-      <h2>No Followers Yet</h2>
-      <p>You don't have any followers at the moment.</p>
+      <h2>No Non-Followers Yet</h2>
+      <p>You don't have any non-followers at the moment.</p>
     </div>
   }
 
-  <!-- Followers List -->
-  @if (!loading() && !error() && followers().length > 0) {
-    <div class="followers-stats">
-      <p>{{ followers().length }} {{ followers().length === 1 ? 'follower' : 'followers' }}</p>
-    </div>
-    <div class="followers-grid">
-      @for (follower of followers(); track follower.id) {
-        <div class="follower-card">
-          <a [href]="follower.html_url" target="_blank" rel="noopener noreferrer" class="follower-link">
-            <img 
-              [src]="follower.avatar_url" 
-              [alt]="follower.login + ' avatar'"
-              class="follower-avatar"
-            />
-            <div class="follower-info">
-              <h3 class="follower-login">{{ follower.login }}</h3>
-              <span class="follower-type">{{ follower.type }}</span>
-            </div>
-            <svg class="external-link-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-              <polyline points="15 3 21 3 21 9"></polyline>
-              <line x1="10" y1="14" x2="21" y2="3"></line>
-            </svg>
-          </a>
-        </div>
-      }
-    </div>
-  }
-</div>
+   @if (!loading() && !error() && followers().length > 0) {
+  <div class="followers-stats">
+    <p>
+      {{ followers().length }}
+      {{ followers().length === 1 ? 'non-follower' : 'non-followers' }}
+    </p>
+  </div>
+  <div class="followers-grid">
+    @for (follower of followers(); track follower.login) {
+      <div class="follower-card">
+        <a
+          [href]="follower.html_url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="follower-link"
+        >
+          <img
+            [src]="'https://github.com/' + follower.login + '.png'"
+            [alt]="follower.login + ' avatar'"
+            class="follower-avatar"
+          />
+          <div class="follower-info">
+            <h3 class="follower-login">{{ follower.login }}</h3>
+          </div>
+          <svg
+            class="external-link-icon"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+            ></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+          </svg>
+        </a>
+      </div>
+    }
+  </div>
+}

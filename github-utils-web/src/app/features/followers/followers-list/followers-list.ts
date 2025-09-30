@@ -5,6 +5,7 @@ import { Follower } from '../follower.model';
 
 @Component({
   selector: 'app-followers-list',
+  standalone: true,
   imports: [CommonModule],
   templateUrl: './followers-list.html',
   styleUrl: './followers-list.scss'
@@ -20,22 +21,23 @@ export class FollowersList implements OnInit {
     this.loadFollowers();
   }
 
-  private loadFollowers(): void {
-    this.loading.set(true);
-    this.error.set(null);
-    
-    this.followersService.getFollowers().subscribe({
-      next: (data) => {
-        this.followers.set(data);
-        this.loading.set(false);
-      },
-      error: (err) => {
-        this.error.set(err.message || 'Failed to load followers');
-        this.loading.set(false);
-      }
-    });
-  }
-
+ private loadFollowers(): void {
+  this.loading.set(true);
+  this.error.set(null);
+  console.log('Carregando não-seguidores...');
+  this.followersService.getFollowers().subscribe({
+    next: (data) => {
+      console.log('Dados recebidos:', data);
+      this.followers.set(data);
+      this.loading.set(false);
+    },
+    error: (err) => {
+      console.log('Erro ao carregar:', err);
+      this.error.set(err.message || 'Failed to load followers');
+      this.loading.set(false);
+    }
+  });
+}
   protected retryLoad(): void {
     this.loadFollowers();
   }
