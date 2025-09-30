@@ -75,6 +75,14 @@ Perfect for:
 - npm or yarn
 - Angular CLI
 
+### ⚠️ Backend Required
+
+This frontend application requires the backend service to be running. Make sure to clone and start the backend server before using this application.
+
+👉 **Backend Repository**: [github-utils](https://github.com/M41k0n-Mk/github-utils)
+
+Check the backend repository for detailed setup instructions.
+
 ### Installation
 
 ```bash
