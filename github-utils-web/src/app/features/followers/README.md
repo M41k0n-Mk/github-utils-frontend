@@ -1,7 +1,7 @@
-# Followers Service
+# Followers Feature
 
 ## Overview
-The `FollowersService` is responsible for fetching GitHub followers data from the backend API.
+The Followers feature provides a complete UI for displaying GitHub followers data from the backend API.
 
 ## Location
 `src/app/features/followers/`
@@ -10,9 +10,36 @@ The `FollowersService` is responsible for fetching GitHub followers data from th
 - `follower.model.ts` - TypeScript interface for Follower data
 - `followers.service.ts` - Service class for API communication
 - `followers.service.spec.ts` - Unit tests for the service
+- `followers-list/` - Component directory
+  - `followers-list.ts` - Component class with loading, error, and success states
+  - `followers-list.html` - Template with followers grid display
+  - `followers-list.scss` - Component styles
 - `index.ts` - Barrel export for cleaner imports
 
-## Usage
+## Component Usage
+
+The `FollowersListComponent` is automatically displayed when navigating to `/followers` route.
+
+### Features
+- **Loading State**: Displays a spinner while fetching data
+- **Error State**: Shows error message with retry button
+- **Empty State**: Displays message when no followers found
+- **Success State**: Grid layout showing followers with:
+  - Avatar images
+  - Username (login)
+  - User type badge (User/Organization)
+  - Link to GitHub profile
+
+### Routing
+The component is configured in `app.routes.ts`:
+```typescript
+export const routes: Routes = [
+  { path: '', redirectTo: '/followers', pathMatch: 'full' },
+  { path: 'followers', component: FollowersList }
+];
+```
+
+## Service Usage
 
 ### Import the Service
 ```typescript
