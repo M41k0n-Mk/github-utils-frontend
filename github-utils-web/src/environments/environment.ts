@@ -1,4 +1,4 @@
 export const environment = {
   production: false,
-  apiUrl: 'https://verbose-trout-4j7v6rj9g6j6hqgw4-8080.app.github.dev/'
+  apiUrl: 'https://verbose-trout-4j7v6rj9g6j6hqgw4-8080.app.github.dev'
 };
