@@ -8,13 +8,16 @@
 [![Angular](https://img.shields.io/badge/Angular-DD0031?style=for-the-badge&logo=angular&logoColor=white)](https://angular.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
+![Status](https://img.shields.io/badge/status-active-success.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+
 </div>
 
 ---
 
 ## 📖 Overview
 
-This **GitHub Follower Manager** backend project provides powerful tools for managing your GitHub followers and followings. The core feature allows users to view a list of accounts they follow and identify which of those accounts do not follow them back. Additionally, it offers an automated option to unfollow all users who do not reciprocate the follow.
+This **GitHub Follower Manager** project provides powerful tools for managing your GitHub followers and followings. The core feature allows users to view a list of accounts they follow and identify which of those accounts do not follow them back. Additionally, it offers an automated option to unfollow all users who do not reciprocate the follow.
 
 > 💡 **Keep your GitHub network clean, balanced, and meaningful!**
 
