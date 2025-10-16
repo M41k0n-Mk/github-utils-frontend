@@ -1,0 +1,34 @@
+<div class="modal-backdrop" [class.open]="isOpen" (click)="onBackdropClick($event)">
+  <div class="modal-container" [class.open]="isOpen">
+    <div class="modal-header">
+      <h2 class="modal-title">{{ title }}</h2>
+    </div>
+    
+    <div class="modal-body">
+      <p class="modal-message">{{ message }}</p>
+    </div>
+    
+    <div class="modal-footer">
+      <button 
+        class="btn btn-secondary" 
+        (click)="onCancel()"
+        [disabled]="isLoading">
+        {{ cancelText }}
+      </button>
+      
+      <button 
+        class="btn"
+        [class.btn-danger]="isDestructive"
+        [class.btn-primary]="!isDestructive"
+        [class.loading]="isLoading"
+        (click)="onConfirm()"
+        [disabled]="isLoading">
+        
+        @if (isLoading) {
+          <span class="spinner"></span>
+        }
+        {{ confirmText }}
+      </button>
+    </div>
+  </div>
+</div>
