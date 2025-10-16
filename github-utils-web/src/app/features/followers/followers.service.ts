@@ -15,9 +15,13 @@ export class FollowersService {
   constructor(private http: HttpClient) {}
 
   getFollowers(): Observable<Follower[]> {
-    console.log('Making request to:', this.apiUrl);
+    // Add timestamp to prevent caching issues
+    const cacheBuster = new Date().getTime();
+    const urlWithCacheBuster = `${this.apiUrl}?_t=${cacheBuster}`;
     
-    return this.http.get<{ users: Follower[] }>(this.apiUrl)
+    console.log('Making request to:', urlWithCacheBuster);
+    
+    return this.http.get<{ users: Follower[] }>(urlWithCacheBuster)
       .pipe(
         map((resp: { users: Follower[] }) => {
           console.log('Response received:', resp);
