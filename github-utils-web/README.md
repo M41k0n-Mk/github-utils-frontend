@@ -36,6 +36,34 @@ ng build
 
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
 
+## Environment Configuration
+
+This project uses different environments for development and production:
+
+### Development Environment
+- **File**: `src/environments/environment.development.ts`
+- **API URL**: `http://localhost:8080/api`
+- **Production flag**: `false`
+- **Usage**: Automatically used when running `ng serve`
+
+### Production Environment  
+- **File**: `src/environments/environment.ts`
+- **API URL**: `https://verbose-trout-4j7v6rj9g6j6hqgw4-8080.app.github.dev/api`
+- **Production flag**: `true`
+- **Usage**: Used when running `ng build --configuration=production`
+
+### Switching Environments
+```bash
+# Development (default)
+ng serve
+
+# Force production environment in development
+ng serve --configuration=production
+
+# Production build
+ng build --configuration=production
+```
+
 ## Running unit tests
 
 To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:

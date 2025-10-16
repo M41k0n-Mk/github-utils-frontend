@@ -27,8 +27,12 @@ The `FollowersListComponent` is automatically displayed when navigating to `/fol
 - **Success State**: Grid layout showing followers with:
   - Avatar images
   - Username (login)
-  - User type badge (User/Organization)
   - Link to GitHub profile
+- **Mass Unfollow**: One-click unfollow all non-followers
+  - Confirmation modal for safety
+  - Loading state during operation
+  - Success feedback
+  - Automatic list refresh
 
 ### Routing
 The component is configured in `app.routes.ts`:
@@ -83,12 +87,26 @@ export class FollowersListComponent implements OnInit {
       }
     });
   }
+
+  // Mass unfollow functionality
+  massUnfollow(): void {
+    this.followersService.unfollowNonFollowers().subscribe({
+      next: (response) => {
+        console.log(response.message);
+        this.loadFollowers(); // Refresh the list
+      },
+      error: (err) => {
+        this.error = err.message;
+      }
+    });
+  }
 }
 ```
 
-## API Endpoint
-The service consumes the following endpoint:
-- **GET** `/api/followers` - Returns an array of followers
+## API Endpoints
+The service consumes the following endpoints:
+- **GET** `/api/followers/non-followers` - Returns an array of non-followers
+- **DELETE** `/api/followers/unfollow-non-followers` - Unfollows all non-followers
 
 ## Data Model
 
@@ -103,11 +121,34 @@ interface Follower {
 ```
 
 ## Configuration
-The API URL is configured in:
-- `src/environments/environment.ts` (production)
-- `src/environments/environment.development.ts` (development)
 
-Default API URL: `http://localhost:8080/api`
+### Environment Setup
+The API URL is automatically configured based on the build environment:
+
+#### Development Environment (`environment.development.ts`)
+```typescript
+export const environment = {
+  production: false,
+  apiUrl: 'http://localhost:8080/api'
+};
+```
+- Used when running `ng serve`
+- Points to local development server
+
+#### Production Environment (`environment.ts`)
+```typescript
+export const environment = {
+  production: true,
+  apiUrl: 'https://verbose-trout-4j7v6rj9g6j6hqgw4-8080.app.github.dev/api'
+};
+```
+- Used when running `ng build --configuration=production`
+- Points to GitHub Codespaces backend
+
+### Switching Environments
+The Angular CLI automatically selects the correct environment:
+- **Development**: `ng serve` → uses `environment.development.ts`
+- **Production**: `ng build --configuration=production` → uses `environment.ts`
 
 ## Error Handling
 The service includes comprehensive error handling:
