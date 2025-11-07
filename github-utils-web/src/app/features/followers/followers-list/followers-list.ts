@@ -1,8 +1,12 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FollowersService } from '../followers.service';
+import { FollowersService, NonFollowersPreviewReport } from '../followers.service';
 import { Follower } from '../follower.model';
 import { ConfirmationModal } from '../../../shared/components';
+import { firstValueFrom } from 'rxjs';
+import { LocalListsService } from '../../../shared/services/local-lists.service';
+import { SavedList } from '../../../shared/models/lists.model';
+import { DryRunService } from '../../../shared/services/dry-run.service';
 
 @Component({
   selector: 'app-followers-list',
@@ -12,69 +16,328 @@ import { ConfirmationModal } from '../../../shared/components';
   styleUrl: './followers-list.scss'
 })
 export class FollowersList implements OnInit {
+  // Data & state
   protected readonly followers = signal<Follower[]>([]);
   protected readonly loading = signal<boolean>(false);
   protected readonly error = signal<string | null>(null);
-  
-  // Mass unfollow states
+  protected readonly page = signal<number>(1);
+  protected readonly size = signal<number>(30);
+  protected readonly totalNonFollowers = signal<number>(0);
+  protected readonly dryRunEnabled = signal<boolean>(false);
+  protected readonly showDryRunBanner = signal<boolean>(true);
+
+  // Selection
+  protected readonly selected = signal<Set<string>>(new Set());
+  protected readonly dryRunToggling = signal<boolean>(false);
+
+  // Mass unfollow states (legacy/global)
   protected readonly showConfirmModal = signal<boolean>(false);
   protected readonly unfollowLoading = signal<boolean>(false);
   protected readonly successMessage = signal<string | null>(null);
+  protected readonly savedLists = signal<SavedList[]>([]);
+  protected readonly skipProcessed = signal<boolean>(true);
+  protected readonly processedOnPageCount = signal<number>(0);
 
-  constructor(private followersService: FollowersService) {}
+  constructor(private followersService: FollowersService, private localLists: LocalListsService, private dryRun: DryRunService) {}
 
   ngOnInit(): void {
+    this.refreshSavedLists();
+    // Fetch dry-run status from server at startup
+    this.dryRun.status().subscribe((enabled) => {
+      this.dryRunEnabled.set(enabled);
+      this.dryRun.enabled.set(enabled);
+    });
     this.loadFollowers();
   }
 
- private loadFollowers(): void {
-  this.loading.set(true);
-  this.error.set(null);
-  
-  const timestamp = new Date().toISOString();
-  console.log('🔄 Loading non-followers at', timestamp);
-  
-  this.followersService.getFollowers().subscribe({
-    next: (data) => {
-      console.log('📊 Non-followers data received:', {
-        count: data.length,
-        timestamp,
-        first5Users: data.slice(0, 5).map(u => u.login),
-        last5Users: data.slice(-5).map(u => u.login),
-        note: 'This should now be the correct count with full pagination!',
-        expectedImprovement: 'Should be more accurate than before'
-      });
-      
-      // Log comparison if we have response with count
-      console.log('🎯 Frontend processing complete:', {
-        displayedCount: data.length,
-        sampleUsers: data.slice(0, 3)
-      });
-      
-      // Check if any of these users actually follow you back (shouldn't happen)
-      const suspiciousUsers = data.filter(user => 
-        user.login.includes('follow') || user.login.includes('mutual')
-      );
-      
-      if (suspiciousUsers.length > 0) {
-        console.warn('⚠️ Suspicious users found (might be followers):', suspiciousUsers);
-      }
-      
-      this.followers.set(data);
-      this.loading.set(false);
-    },
-    error: (err) => {
-      console.error('❌ Error loading followers:', err);
-      this.error.set(err.message || 'Failed to load followers');
-      this.loading.set(false);
+  private refreshSavedLists(): void {
+    try {
+      this.savedLists.set(this.localLists.getLists());
+    } catch (e) {
+      console.error('Failed to load saved lists', e);
+      this.savedLists.set([]);
     }
-  });
-}
+  }
+
+  private refreshProcessedOnPageCount(): void {
+    try {
+      const history = this.localLists.getHistory().filter(h => h.action === 'unfollow');
+      const set = new Set(history.map(h => h.username));
+      const count = this.followers().filter(u => set.has(u.login)).length;
+      this.processedOnPageCount.set(count);
+    } catch (e) {
+      console.warn('Unable to compute processed count', e);
+      this.processedOnPageCount.set(0);
+    }
+  }
+
+  private loadFollowers(): void {
+    this.loading.set(true);
+    this.error.set(null);
+
+    const currentPage = this.page();
+    const currentSize = this.size();
+    const timestamp = new Date().toISOString();
+    console.log('🔄 Loading non-followers preview', { currentPage, currentSize, timestamp });
+
+    this.followersService.getNonFollowersPreview(currentPage, currentSize).subscribe({
+      next: (report: NonFollowersPreviewReport) => {
+        console.log('📊 Preview received:', report);
+        this.followers.set(report.users || []);
+        this.totalNonFollowers.set(report.totalNonFollowers || report.users?.length || 0);
+        this.dryRunEnabled.set(!!report.dryRunEnabled);
+        this.loading.set(false);
+        this.refreshProcessedOnPageCount();
+      },
+      error: (err) => {
+        console.error('❌ Error loading preview:', err);
+        this.error.set(err.message || 'Failed to load non-followers');
+        this.loading.set(false);
+        this.refreshProcessedOnPageCount();
+      }
+    });
+  }
+
   protected retryLoad(): void {
     this.loadFollowers();
   }
 
-  // Mass unfollow methods
+  protected dismissDryRunBanner(): void {
+    this.showDryRunBanner.set(false);
+  }
+
+  protected async toggleDryRun(): Promise<void> {
+    if (this.dryRunToggling()) return;
+    this.dryRunToggling.set(true);
+    const current = this.dryRunEnabled();
+    try {
+      const enabled = await firstValueFrom(this.dryRun.toggle(current));
+      this.dryRunEnabled.set(enabled);
+      this.dryRun.enabled.set(enabled);
+      this.successMessage.set(`Dry-run ${enabled ? 'enabled' : 'disabled'}.`);
+    } catch (e: any) {
+      console.error('Failed to toggle dry-run', e);
+      this.error.set(e?.message || 'Failed to toggle Dry-run');
+    } finally {
+      this.dryRunToggling.set(false);
+    }
+  }
+
+  // Pagination
+  protected nextPage(): void {
+    this.page.update(p => p + 1);
+    this.loadFollowers();
+  }
+
+  protected prevPage(): void {
+    if (this.page() > 1) {
+      this.page.update(p => p - 1);
+      this.loadFollowers();
+    }
+  }
+
+  protected changeSize(newSize: number): void {
+    this.size.set(newSize);
+    this.page.set(1);
+    this.loadFollowers();
+  }
+
+  // Selection helpers
+  protected isSelected(login: string): boolean {
+    return this.selected().has(login);
+  }
+
+  protected toggleSelection(login: string): void {
+    const s = new Set(this.selected());
+    if (s.has(login)) s.delete(login); else s.add(login);
+    this.selected.set(s);
+  }
+
+  protected selectAllOnPage(): void {
+    const s = new Set(this.selected());
+    this.followers().forEach(u => s.add(u.login));
+    this.selected.set(s);
+  }
+
+  protected clearSelection(): void {
+    this.selected.set(new Set());
+  }
+
+  // Targeted actions
+  protected async unfollowSelected(): Promise<void> {
+    const users = Array.from(this.selected());
+    if (users.length === 0) return;
+    this.unfollowLoading.set(true);
+    this.successMessage.set(null);
+
+    console.log('🚀 Unfollow selected users:', users);
+
+    try {
+      for (const username of users) {
+        await this.followersService.unfollowUser(username).toPromise();
+      }
+      // Append to local history
+      this.localLists.appendHistory(users.map(u => ({ username: u, action: 'unfollow' })));
+      this.refreshProcessedOnPageCount();
+
+      this.successMessage.set(`Unfollowed ${users.length} user(s)`);
+      this.clearSelection();
+      // Small delay then reload
+      setTimeout(() => this.loadFollowers(), 1500);
+    } catch (e: any) {
+      console.error('❌ Error during unfollow selected:', e);
+      this.error.set(e?.message || 'Failed to unfollow selected users');
+    } finally {
+      this.unfollowLoading.set(false);
+    }
+  }
+
+  // Lists & history wiring (local fallback)
+  protected saveSelectionAsList(): void {
+    const users = Array.from(this.selected());
+    if (users.length === 0) {
+      alert('No users selected to save.');
+      return;
+    }
+    const name = window.prompt('List name:', `selection-${new Date().toISOString().slice(0,16)}`);
+    if (!name) return;
+    try {
+      const list = this.localLists.saveList(name, users);
+      this.refreshSavedLists();
+      this.successMessage.set(`Saved list "${list.name}" with ${list.items.length} items.`);
+    } catch (e:any) {
+      console.error('Failed to save list', e);
+      this.error.set(e?.message || 'Failed to save list');
+    }
+  }
+
+  protected async applySavedList(): Promise<void> {
+    const lists = this.savedLists();
+    if (lists.length === 0) {
+      alert('No saved lists found. Save a list first.');
+      return;
+    }
+    const options = lists.map((l, i) => `${i+1}) ${l.name} (${l.items.length})`).join('\n');
+    const input = window.prompt(`Choose a list to apply (unfollow):\n${options}\nEnter the number:`, '1');
+    if (!input) return;
+    const idx = parseInt(input, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= lists.length) {
+      alert('Invalid selection.');
+      return;
+    }
+    const list = lists[idx];
+
+    const skip = this.skipProcessed();
+    const history = this.localLists.getHistory().filter(h => h.action === 'unfollow');
+    const processed = new Set(history.map(h => h.username));
+
+    const toProcess = skip ? list.items.filter(u => !processed.has(u)) : list.items;
+    if (toProcess.length === 0) {
+      alert('Nothing to apply (all items already processed or list is empty).');
+      return;
+    }
+
+    this.unfollowLoading.set(true);
+    this.successMessage.set(null);
+
+    let applied = 0; const failed: string[] = []; const skipped = list.items.length - toProcess.length;
+    for (const username of toProcess) {
+      try {
+        await this.followersService.unfollowUser(username).toPromise();
+        applied++;
+      } catch (e) {
+        console.error('Failed to unfollow', username, e);
+        failed.push(username);
+      }
+    }
+
+    // Register in local history for successfully applied
+    const successful = toProcess.filter(u => !failed.includes(u));
+    if (successful.length > 0) {
+      this.localLists.appendHistory(successful.map(u => ({ username: u, action: 'unfollow', sourceListId: list.id })));
+    }
+
+    this.unfollowLoading.set(false);
+    this.refreshProcessedOnPageCount();
+    this.successMessage.set(`Applied: ${applied}, Skipped: ${skipped}${failed.length?`, Failed: ${failed.length}`:''}`);
+    setTimeout(() => this.loadFollowers(), 1500);
+  }
+
+  protected async exportData(): Promise<void> {
+    try {
+      const json = this.localLists.exportAll();
+      if (navigator.clipboard && (window as any).isSecureContext !== false) {
+        await navigator.clipboard.writeText(json);
+        alert('Lists & history exported to clipboard as JSON.');
+      } else {
+        // Fallback: prompt with JSON to copy manually
+        window.prompt('Copy the JSON below:', json);
+      }
+    } catch (e:any) {
+      console.error('Export failed', e);
+      this.error.set(e?.message || 'Export failed');
+    }
+  }
+
+  protected importData(): void {
+    const json = window.prompt('Paste the JSON exported previously:');
+    if (!json) return;
+    try {
+      this.localLists.importAll(json);
+      this.refreshSavedLists();
+      this.refreshProcessedOnPageCount();
+      this.successMessage.set('Import completed.');
+    } catch (e:any) {
+      console.error('Import failed', e);
+      this.error.set(e?.message || 'Import failed');
+    }
+  }
+
+  protected async undoRecent(onlySelected = false): Promise<void> {
+    // Default window 60 minutes
+    const defaultMinutes = 60;
+    const input = window.prompt('Undo window in minutes (default 60):', String(defaultMinutes));
+    const minutes = input ? Math.max(1, parseInt(input, 10)) : defaultMinutes;
+    const since = Date.now() - minutes * 60 * 1000;
+
+    const selectedSet = new Set(this.selected());
+    const history = this.localLists.getHistory()
+      .filter(h => h.action === 'unfollow' && new Date(h.timestamp).getTime() >= since)
+      .filter(h => !onlySelected || selectedSet.has(h.username));
+
+    if (history.length === 0) {
+      alert('No unfollows to undo within the specified window.');
+      return;
+    }
+
+    this.unfollowLoading.set(true);
+    let refollowed = 0; const failed: string[] = [];
+    for (const h of history) {
+      try {
+        await this.followersService.followUser(h.username).toPromise();
+        refollowed++;
+      } catch (e) {
+        console.error('Failed to refollow', h.username, e);
+        failed.push(h.username);
+      }
+    }
+
+    // Log follow operations to local history
+    const successful = history.map(h => h.username).filter(u => !failed.includes(u));
+    if (successful.length > 0) {
+      this.localLists.appendHistory(successful.map(u => ({ username: u, action: 'follow' })));
+    }
+
+    this.unfollowLoading.set(false);
+    this.successMessage.set(`Undo completed. Refollowed: ${refollowed}${failed.length?`, Failed: ${failed.length}`:''}`);
+    setTimeout(() => this.loadFollowers(), 1500);
+  }
+
+  protected dismissSuccessMessage(): void {
+    this.successMessage.set(null);
+  }
+
+  // Legacy mass unfollow (kept for now)
   protected openConfirmModal(): void {
     this.showConfirmModal.set(true);
   }
@@ -86,23 +349,22 @@ export class FollowersList implements OnInit {
   protected confirmMassUnfollow(): void {
     this.unfollowLoading.set(true);
     this.successMessage.set(null);
-    
+
     const beforeCount = this.followers().length;
     console.log('🚀 Starting mass unfollow for', beforeCount, 'users');
-    
+
     this.followersService.unfollowNonFollowers().subscribe({
       next: (response) => {
         console.log('✅ Mass unfollow successful:', response);
         this.successMessage.set(response.message);
         this.unfollowLoading.set(false);
         this.showConfirmModal.set(false);
-        
-        // Reload the list to show updated data with longer delay for GitHub API sync
+
         console.log('🔄 Waiting 3 seconds before reloading to allow GitHub API sync...');
         setTimeout(() => {
           console.log('🔄 Reloading followers list after mass unfollow');
           this.loadFollowers();
-        }, 3000); // Increased delay to 3 seconds
+        }, 3000);
       },
       error: (err) => {
         console.error('❌ Mass unfollow failed:', err);
@@ -111,9 +373,5 @@ export class FollowersList implements OnInit {
         this.showConfirmModal.set(false);
       }
     });
-  }
-
-  protected dismissSuccessMessage(): void {
-    this.successMessage.set(null);
   }
 }
