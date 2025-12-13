@@ -1,8 +1,19 @@
 <div class="followers-container">
   <div class="header-section">
-    <h1 class="followers-title">GitHub Non-Followers</h1>
-    <p class="header-subtitle">People you follow who don't follow you back</p>
+    <h1 class="followers-title">Following Cleanup</h1>
+    <p class="header-subtitle">Following cleanup — manage who you follow</p>
   </div>
+
+  <!-- Dry-run banner -->
+  @if (dryRunEnabled() && showDryRunBanner() && !loading()) {
+    <div class="info-banner">
+      <span>Dry‑run ativo: nenhuma ação real de follow/unfollow será executada.</span>
+      <button class="banner-action" (click)="toggleDryRun()" [disabled]="dryRunToggling()">
+        Desativar agora
+      </button>
+      <button class="banner-dismiss" (click)="dismissDryRunBanner()" aria-label="Dismiss">×</button>
+    </div>
+  }
 
   <!-- Success Message -->
   @if (successMessage() && !loading()) {
@@ -57,80 +68,116 @@
     </div>
   }
 
-   @if (!loading() && !error() && followers().length > 0) {
-  <!-- Action Bar -->
-  <div class="action-bar">
-    <div class="followers-stats">
-      <svg class="stats-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-        <circle cx="9" cy="7" r="4"></circle>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-      </svg>
-      <span class="stats-text">
-        {{ followers().length }}
-        {{ followers().length === 1 ? 'non-follower' : 'non-followers' }} found
-      </span>
-    </div>
-    
-    <button 
-      class="unfollow-btn"
-      (click)="openConfirmModal()"
-      [disabled]="followers().length === 0">
-      <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-        <circle cx="8.5" cy="7" r="4"></circle>
-        <line x1="23" y1="11" x2="17" y2="11"></line>
-      </svg>
-      Unfollow All
-    </button>
-  </div>
-  <div class="followers-grid">
-    @for (follower of followers(); track follower.login) {
-      <div class="follower-card">
-        <a
-          [href]="follower.html_url"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="follower-link"
-        >
-          <img
-            [src]="'https://github.com/' + follower.login + '.png'"
-            [alt]="follower.login + ' avatar'"
-            class="follower-avatar"
-          />
-          <div class="follower-info">
-            <h3 class="follower-login">{{ follower.login }}</h3>
-          </div>
-          <svg
-            class="external-link-icon"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
-            ></path>
-            <polyline points="15 3 21 3 21 9"></polyline>
-            <line x1="10" y1="14" x2="21" y2="3"></line>
-          </svg>
-        </a>
+  @if (!loading() && !error() && followers().length > 0) {
+    <!-- Action Bar -->
+    <div class="action-bar">
+      <div class="followers-stats">
+        <svg class="stats-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+        <span class="stats-text">
+          Page {{ page() }} • Showing {{ followers().length }} of {{ totalNonFollowers() }} non-followers
+        </span>
       </div>
-    }
-  </div>
-}
 
-<!-- Confirmation Modal -->
-<app-confirmation-modal
-  [isOpen]="showConfirmModal()"
-  [title]="'Mass Unfollow Confirmation'"
-  [message]="'Are you sure you want to unfollow all ' + followers().length + ' non-followers? This action cannot be undone.'"
-  [confirmText]="'Unfollow All'"
-  [cancelText]="'Cancel'"
-  [isDestructive]="true"
-  [isLoading]="unfollowLoading()"
-  (confirm)="confirmMassUnfollow()"
-  (cancel)="closeConfirmModal()">
-</app-confirmation-modal>
+      <div class="action-buttons">
+        <label class="toggle-inline" title="Quando ativo, nenhuma ação real será enviada ao GitHub.">
+          <input type="checkbox" [checked]="dryRunEnabled()" (change)="toggleDryRun()" [disabled]="dryRunToggling()" />
+          Dry‑run
+        </label>
+
+        <button class="btn btn-secondary" (click)="selectAllOnPage()">Select page</button>
+        <button class="btn btn-secondary" (click)="clearSelection()" [disabled]="selected().size === 0">Clear selection ({{ selected().size }})</button>
+        <button class="btn btn-danger" (click)="unfollowSelected()" [disabled]="selected().size === 0 || unfollowLoading()">
+          Unfollow selected ({{ selected().size }})
+        </button>
+        <button class="btn btn-primary" (click)="saveSelectionAsList()" [disabled]="selected().size === 0">Save list</button>
+        <button class="btn btn-primary" (click)="applySavedList()" [disabled]="savedLists().length === 0 || unfollowLoading()">Apply list</button>
+        <button class="btn" (click)="exportData()">Export</button>
+        <button class="btn" (click)="importData()">Import</button>
+        <label class="toggle-inline" title="Pula usuários que já foram unfollow (com base no histórico local/servidor) ao aplicar listas.">
+          <input type="checkbox" [checked]="skipProcessed()" (change)="skipProcessed.set($any($event.target).checked)" />
+          Skip already unfollowed
+        </label>
+        <span class="processed-badge" title="Already unfollowed on this device (local history)">Processed on page: {{ processedOnPageCount() }}</span>
+        <button class="btn" (click)="undoRecent(true)" [disabled]="selected().size === 0 || unfollowLoading()">Undo (selected, 60m)</button>
+        <button class="btn" (click)="undoRecent(false)" [disabled]="unfollowLoading()">Undo (all, 60m)</button>
+        <button class="btn btn-danger accent" (click)="openConfirmModal()" [disabled]="followers().length === 0">
+          <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="8.5" cy="7" r="4"></circle>
+            <line x1="23" y1="11" x2="17" y2="11"></line>
+          </svg>
+          Unfollow All
+        </button>
+      </div>
+
+      <div class="pagination-controls">
+        <button class="btn" (click)="prevPage()" [disabled]="page() === 1">Previous</button>
+        <button class="btn" (click)="nextPage()">Next</button>
+        <label>
+          Page size:
+          <select [value]="size()" (change)="changeSize(+$any($event.target).value)">
+            <option [value]="15">15</option>
+            <option [value]="30">30</option>
+            <option [value]="50">50</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="followers-grid">
+      @for (follower of followers(); track follower.login) {
+        <div class="follower-card">
+          <label class="checkbox">
+            <input type="checkbox" [checked]="isSelected(follower.login)" (change)="toggleSelection(follower.login)">
+          </label>
+          <a
+            [href]="follower.html_url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="follower-link"
+          >
+            <img
+              [src]="'https://github.com/' + follower.login + '.png'"
+              [alt]="follower.login + ' avatar'"
+              class="follower-avatar"
+            />
+            <div class="follower-info">
+              <h3 class="follower-login">{{ follower.login }}</h3>
+            </div>
+            <svg
+              class="external-link-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
+              <path
+                d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+              ></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </a>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Confirmation Modal -->
+  <app-confirmation-modal
+    [isOpen]="showConfirmModal()"
+    [title]="'Mass Unfollow Confirmation'"
+    [message]="'Are you sure you want to unfollow all ' + followers().length + ' non-followers on this page? This action cannot be undone.'"
+    [confirmText]="'Unfollow All'"
+    [cancelText]="'Cancel'"
+    [isDestructive]="true"
+    [isLoading]="unfollowLoading()"
+    (confirm)="confirmMassUnfollow()"
+    (cancel)="closeConfirmModal()">
+  </app-confirmation-modal>
 </div>
