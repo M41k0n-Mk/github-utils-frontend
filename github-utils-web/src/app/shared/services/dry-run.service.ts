@@ -43,6 +43,13 @@ export class DryRunService {
   }
 
   toggle(current: boolean): Observable<boolean> {
+    return this.http.post<DryRunStatusResponse>(`${this.baseUrl}/toggle`, {}).pipe(
+      map(r => !!r.enabled),
+      catchError(this.handleToggleError)
+    );
+  }
+
+  toggleAlt(current: boolean): Observable<boolean> {
     // Prefer explicit enable/disable to avoid race conditions
     return (current ? this.disable() : this.enable());
   }
