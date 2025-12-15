@@ -350,13 +350,13 @@ export class FollowersList implements OnInit {
     }
   }
 
-  private importFromDatabase(): void {
+  private async importFromDatabase(): Promise<void> {
     let lists = this.savedLists();
     if (lists.length === 0) {
       alert('No saved lists found in database.');
       return;
     }
-    const options = lists.map((l, i) => `${i+1}) ${l.name} (${l.items.length})`).join('\n');
+    const options = lists.map((l, i) => `${i+1}) ${l.name} (${l.count || 0} users)`).join('\n');
     const input = window.prompt(`Choose a list to import for management:\n${options}\nEnter the number:`, '1');
     if (!input) return;
     const idx = parseInt(input, 10) - 1;
@@ -364,12 +364,20 @@ export class FollowersList implements OnInit {
       alert('Invalid selection.');
       return;
     }
-    const list = lists[idx];
+    const selectedList = lists[idx];
 
-    // Set as active list for management
-    const users = list.items.map((username: string) => ({ login: username, avatar_url: '', html_url: '' }));
-    this.activeList.set({ name: list.name, users, selected: new Set() });
-    this.successMessage.set(`"${list.name}" imported from database for management.`);
+    try {
+      // Fetch full list details from backend
+      const fullList = await firstValueFrom(this.listsService.getList(selectedList.id));
+
+      // Set as active list for management
+      const users = fullList.items.map((username: string) => ({ login: username, avatar_url: '', html_url: '' }));
+      this.activeList.set({ name: fullList.name, users, selected: new Set() });
+      this.successMessage.set(`"${fullList.name}" imported from database for management.`);
+    } catch (e: any) {
+      console.error('Failed to load list details', e);
+      this.error.set(e?.message || 'Failed to load list details');
+    }
   }
 
   private performImport(json: string): void {

@@ -1,7 +1,8 @@
 export interface SavedList {
   id: string; // uuid
   name: string;
-  items: string[]; // usernames
+  items?: string[]; // usernames (optional for summary)
+  count?: number; // number of items (for summary)
   createdAt: string; // ISO
   updatedAt: string; // ISO
 }
