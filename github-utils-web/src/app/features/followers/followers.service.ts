@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
+import { Observable, throwError, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { Follower } from './follower.model';
 import { environment } from '../../../environments/environment';
@@ -52,7 +52,18 @@ export class FollowersService {
     console.log('Making preview request to:', url);
     return this.http.get<NonFollowersPreviewReport>(url)
       .pipe(
-        catchError(this.handleError)
+        catchError(err => {
+          console.error('Failed to load preview, returning empty:', err.message);
+          return of({
+            users: [],
+            totalFollowers: 0,
+            totalFollowing: 0,
+            totalNonFollowers: 0,
+            page: page,
+            size: size,
+            dryRunEnabled: false
+          });
+        })
       );
   }
 
@@ -116,8 +127,8 @@ export class FollowersService {
   private handleError(error: HttpErrorResponse): Observable<never> {
     let errorMessage = 'An unknown error occurred';
 
-    if (error.error instanceof ErrorEvent) {
-      // Client-side error
+    if (error.error && typeof error.error.message === 'string') {
+      // Client-side error (ErrorEvent or similar)
       errorMessage = `Error: ${error.error.message}`;
     } else {
       // Server-side error
