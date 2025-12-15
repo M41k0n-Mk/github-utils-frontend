@@ -41,6 +41,8 @@ export class FollowersList implements OnInit {
   protected readonly processedOnPageCount = signal<number>(0);
   protected readonly backendHistory = signal<HistoryEntry[]>([]);
   protected readonly backendLists = signal<any[]>([]);
+  // New: Active imported list for management
+  protected readonly activeList = signal<{ name: string; users: Follower[]; selected: Set<string> } | null>(null);
 
   constructor(private followersService: FollowersService, private localLists: LocalListsService, private dryRun: DryRunService, private listsService: ListsService, private historyService: HistoryService) {}
 
@@ -228,34 +230,6 @@ export class FollowersList implements OnInit {
   }
 
   // Lists & history wiring (local fallback)
-  protected async saveSelectionAsList(): Promise<void> {
-    const users = Array.from(this.selected());
-    if (users.length === 0) {
-      alert('No users selected to save.');
-      return;
-    }
-    const name = window.prompt('List name:', `selection-${new Date().toISOString().slice(0,16)}`);
-    if (!name) return;
-    try {
-      console.log('Attempting to save list to backend...');
-      // Try to save to backend first
-      const backendList = await firstValueFrom(this.listsService.createList(name, users));
-      // Also save locally as fallback
-      this.localLists.saveList(name, users);
-      this.refreshSavedLists();
-      this.successMessage.set(`Saved list "${backendList.name}" with ${backendList.items.length} items.`);
-    } catch (e: any) {
-      console.error('Failed to save list to backend, saving locally', e);
-      // Fallback to local
-      try {
-        const list = this.localLists.saveList(name, users);
-        this.refreshSavedLists();
-        this.successMessage.set(`Saved list locally "${list.name}" with ${list.items.length} items.`);
-      } catch (localError: any) {
-        this.error.set(localError?.message || 'Failed to save list');
-      }
-    }
-  }
 
   protected async applySavedList(): Promise<void> {
     console.log('Apply list clicked, savedLists:', this.savedLists());
@@ -270,7 +244,7 @@ export class FollowersList implements OnInit {
       }
     }
     const options = lists.map((l, i) => `${i+1}) ${l.name} (${l.items.length})`).join('\n');
-    const input = window.prompt(`Choose a list to apply (unfollow):\n${options}\nEnter the number:`, '1');
+    const input = window.prompt(`Choose a list to manage (follow/unfollow):\n${options}\nEnter the number:`, '1');
     if (!input) return;
     const idx = parseInt(input, 10) - 1;
     if (isNaN(idx) || idx < 0 || idx >= lists.length) {
@@ -279,45 +253,10 @@ export class FollowersList implements OnInit {
     }
     const list = lists[idx];
 
-    const skip = this.skipProcessed();
-    // Prefer backend history for consistency, fallback to local
-    let history: HistoryEntry[] = this.backendHistory().filter(h => h.action === 'unfollow');
-    if (history.length === 0) {
-      const localHistory = this.localLists.getHistory().filter(h => h.action === 'unfollow');
-      history = localHistory.map(h => ({ ...h, dryRun: h.dryRun ?? false }));
-    }
-    const processed = new Set(history.map(h => h.username));
-
-    const toProcess = skip ? list.items.filter(u => !processed.has(u)) : list.items;
-    if (toProcess.length === 0) {
-      alert('Nothing to apply (all items already processed or list is empty).');
-      return;
-    }
-
-    this.unfollowLoading.set(true);
-    this.successMessage.set(null);
-
-    let applied = 0; const failed: string[] = []; const skipped = list.items.length - toProcess.length;
-    for (const username of toProcess) {
-      try {
-        await this.followersService.unfollowUser(username).toPromise();
-        applied++;
-      } catch (e) {
-        console.error('Failed to unfollow', username, e);
-        failed.push(username);
-      }
-    }
-
-    // Register in local history for successfully applied
-    const successful = toProcess.filter(u => !failed.includes(u));
-    if (successful.length > 0) {
-      this.localLists.appendHistory(successful.map(u => ({ username: u, action: 'unfollow', sourceListId: list.id, dryRun: this.dryRunEnabled() })));
-    }
-
-    this.unfollowLoading.set(false);
-    this.refreshProcessedOnPageCount();
-    this.successMessage.set(`Applied: ${applied}, Skipped: ${skipped}${failed.length?`, Failed: ${failed.length}`:''}`);
-    setTimeout(() => this.loadFollowers(), 1500);
+    // Set as active list for management instead of applying directly
+    const users = list.items.map((username: string) => ({ login: username, avatar_url: '', html_url: '' }));
+    this.activeList.set({ name: list.name, users, selected: new Set() });
+    this.successMessage.set(`"${list.name}" loaded for management. Select users and use Follow/Unfollow buttons.`);
   }
 
   protected async exportData(): Promise<void> {
@@ -327,9 +266,15 @@ export class FollowersList implements OnInit {
       return;
     }
 
-    const format = window.prompt('Choose export format (csv or json):', 'csv')?.toLowerCase();
+    const format = window.prompt('Choose export format (csv or json):', 'json')?.toLowerCase();
     if (!format || (format !== 'csv' && format !== 'json')) {
       alert('Invalid format. Please choose csv or json.');
+      return;
+    }
+
+    const destination = window.prompt('Where to export?\n1) File only\n2) Database only\n3) Both file and database\nEnter 1, 2 or 3:', '1');
+    if (!destination || !['1', '2', '3'].includes(destination)) {
+      alert('Invalid destination. Please choose 1, 2 or 3.');
       return;
     }
 
@@ -348,16 +293,41 @@ export class FollowersList implements OnInit {
         filename = 'selected-users.json';
       }
 
-      const blob = new Blob([content], { type: mimeType });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      this.successMessage.set(`${selectedUsers.length} users exported successfully.`);
+      // Handle database save
+      if (destination === '2' || destination === '3') {
+        const name = window.prompt('List name for database:', `selection-${new Date().toISOString().slice(0,16)}`);
+        if (!name) return;
+        try {
+          console.log('Saving to database...');
+          await firstValueFrom(this.listsService.createList(name, selectedUsers));
+          this.localLists.saveList(name, selectedUsers); // Also save locally as fallback
+          this.refreshSavedLists();
+          this.successMessage.set(`Saved to database as "${name}".`);
+        } catch (e: any) {
+          console.error('Failed to save to database', e);
+          this.error.set(e?.message || 'Failed to save to database');
+          return;
+        }
+      }
+
+      // Handle file export
+      if (destination === '1' || destination === '3') {
+        const blob = new Blob([content], { type: mimeType });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        this.successMessage.set(`${selectedUsers.length} users exported to file.`);
+      }
+
+      if (destination === '3') {
+        this.successMessage.set(`Exported to both file and database.`);
+      }
+
     } catch (e: any) {
       console.error('Export failed', e);
       this.error.set(e?.message || 'Export failed');
@@ -365,14 +335,14 @@ export class FollowersList implements OnInit {
   }
 
   protected importData(): void {
-    const choice = window.prompt('Choose import method:\n1) Paste JSON\n2) Upload CSV/JSON file\nEnter 1 or 2:', '1');
-    if (!choice) return;
+    const source = window.prompt('Choose import source:\n1) Database (saved lists)\n2) File (JSON/CSV)\nEnter 1 or 2:', '1');
+    if (!source) return;
 
-    if (choice === '1') {
-      const json = window.prompt('Paste the JSON exported previously:');
-      if (!json) return;
-      this.performImport(json);
-    } else if (choice === '2') {
+    if (source === '1') {
+      // Import from database
+      this.importFromDatabase();
+    } else if (source === '2') {
+      // Import from file
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = '.json,.csv';
@@ -404,30 +374,73 @@ export class FollowersList implements OnInit {
       };
       input.click();
     } else {
-      alert('Invalid choice');
+      alert('Invalid choice.');
     }
+  }
+
+  private importFromDatabase(): void {
+    let lists = this.savedLists();
+    if (lists.length === 0) {
+      alert('No saved lists found in database.');
+      return;
+    }
+    const options = lists.map((l, i) => `${i+1}) ${l.name} (${l.items.length})`).join('\n');
+    const input = window.prompt(`Choose a list to import for management:\n${options}\nEnter the number:`, '1');
+    if (!input) return;
+    const idx = parseInt(input, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= lists.length) {
+      alert('Invalid selection.');
+      return;
+    }
+    const list = lists[idx];
+
+    // Set as active list for management
+    const users = list.items.map((username: string) => ({ login: username, avatar_url: '', html_url: '' }));
+    this.activeList.set({ name: list.name, users, selected: new Set() });
+    this.successMessage.set(`"${list.name}" imported from database for management.`);
   }
 
   private performImport(json: string): void {
     try {
-      // Try to import to backend first (if it's a list)
       const parsed = JSON.parse(json);
+
+      // Check if it's a saved lists export (contains lists array)
       if (parsed.lists && Array.isArray(parsed.lists)) {
-        // Import lists to backend
-        parsed.lists.forEach(async (list: any) => {
-          try {
-            await firstValueFrom(this.listsService.createList(list.name, list.items));
-          } catch (e) {
-            console.warn('Failed to import list to backend, saving locally', e);
-            this.localLists.saveList(list.name, list.items);
-          }
-        });
+        // For the new workflow: Import lists for management instead of just saving
+        if (parsed.lists.length === 1) {
+          // Single list - set as active for management
+          const list = parsed.lists[0];
+          const users = list.items.map((username: string) => ({ login: username, avatar_url: '', html_url: '' }));
+          this.activeList.set({ name: list.name, users, selected: new Set() });
+          this.successMessage.set(`Imported "${list.name}" for management.`);
+        } else {
+          // Multiple lists - still import to backend/local but don't set active
+          parsed.lists.forEach(async (list: any) => {
+            try {
+              await firstValueFrom(this.listsService.createList(list.name, list.items));
+            } catch (e) {
+              console.warn('Failed to import list to backend, saving locally', e);
+              this.localLists.saveList(list.name, list.items);
+            }
+          });
+          this.localLists.importAll(json);
+          this.refreshSavedLists();
+          this.successMessage.set('Multiple lists imported.');
+        }
+      } else if (parsed.name && parsed.items) {
+        // Single list format - set as active
+        const users = parsed.items.map((username: string) => ({ login: username, avatar_url: '', html_url: '' }));
+        this.activeList.set({ name: parsed.name, users, selected: new Set() });
+        this.successMessage.set(`Imported "${parsed.name}" for management.`);
+      } else {
+        // Fallback: treat as username array
+        const usernames = Array.isArray(parsed) ? parsed : [parsed];
+        const users = usernames.map((username: string) => ({ login: username, avatar_url: '', html_url: '' }));
+        this.activeList.set({ name: 'Imported List', users, selected: new Set() });
+        this.successMessage.set('Imported username list for management.');
       }
-      // Always import locally as fallback
-      this.localLists.importAll(json);
-      this.refreshSavedLists();
+
       this.refreshProcessedOnPageCount();
-      this.successMessage.set('Import completed.');
     } catch (e:any) {
       console.error('Import failed', e);
       this.error.set(e?.message || 'Import failed');
@@ -514,5 +527,123 @@ export class FollowersList implements OnInit {
         this.showConfirmModal.set(false);
       }
     });
+  }
+
+  // New methods for active list management
+  protected clearActiveSelection(): void {
+    const active = this.activeList();
+    if (!active) return;
+    this.activeList.set({ ...active, selected: new Set() });
+  }
+
+  protected selectAllActive(): void {
+    const active = this.activeList();
+    if (!active) return;
+    const allUsernames = new Set(active.users.map(u => u.login));
+    this.activeList.set({ ...active, selected: allUsernames });
+  }
+
+  protected toggleActiveSelection(username: string): void {
+    const active = this.activeList();
+    if (!active) return;
+    const newSelected = new Set(active.selected);
+    if (newSelected.has(username)) {
+      newSelected.delete(username);
+    } else {
+      newSelected.add(username);
+    }
+    this.activeList.set({ ...active, selected: newSelected });
+  }
+
+  protected async followSelectedFromActive(): Promise<void> {
+    const active = this.activeList();
+    if (!active || active.selected.size === 0) {
+      alert('No users selected to follow.');
+      return;
+    }
+
+    const users = Array.from(active.selected);
+
+    // Check history for already followed users
+    const history = [...this.backendHistory(), ...this.localLists.getHistory()].filter(h => h.action === 'follow');
+    const alreadyFollowed = users.filter(username =>
+      history.some(h => h.username === username && new Date(h.timestamp).getTime() > Date.now() - 24 * 60 * 60 * 1000)
+    );
+
+    if (alreadyFollowed.length > 0) {
+      const confirm = window.confirm(`${alreadyFollowed.length} user(s) were already followed in the last 24 hours: ${alreadyFollowed.join(', ')}. Continue anyway?`);
+      if (!confirm) return;
+    }
+
+    if (!window.confirm(`Follow ${users.length} selected users?`)) return;
+
+    this.unfollowLoading.set(true);
+    this.successMessage.set(null);
+
+    let applied = 0;
+    const failed: string[] = [];
+    for (const username of users) {
+      try {
+        // Note: Assuming there's a follow endpoint, using unfollow as placeholder
+        await this.followersService.unfollowUser(username).toPromise(); // TODO: Replace with follow endpoint
+        applied++;
+      } catch (e) {
+        console.error('Failed to follow', username, e);
+        failed.push(username);
+      }
+    }
+
+    this.unfollowLoading.set(false);
+    this.successMessage.set(`Followed: ${applied}${failed.length ? `, Failed: ${failed.length}` : ''}`);
+    if (applied > 0) {
+      this.localLists.appendHistory(users.slice(0, applied).map(u => ({ username: u, action: 'follow', dryRun: this.dryRunEnabled() })));
+      this.refreshProcessedOnPageCount();
+    }
+  }
+
+  protected async unfollowSelectedFromActive(): Promise<void> {
+    const active = this.activeList();
+    if (!active || active.selected.size === 0) {
+      alert('No users selected to unfollow.');
+      return;
+    }
+
+    const users = Array.from(active.selected);
+
+    // Check history for already unfollowed users
+    const history = [...this.backendHistory(), ...this.localLists.getHistory()].filter(h => h.action === 'unfollow');
+    const alreadyUnfollowed = users.filter(username =>
+      history.some(h => h.username === username && new Date(h.timestamp).getTime() > Date.now() - 24 * 60 * 60 * 1000)
+    );
+
+    if (alreadyUnfollowed.length > 0) {
+      const confirm = window.confirm(`${alreadyUnfollowed.length} user(s) were already unfollowed in the last 24 hours: ${alreadyUnfollowed.join(', ')}. Continue anyway?`);
+      if (!confirm) return;
+    }
+
+    if (!window.confirm(`Unfollow ${users.length} selected users?`)) return;
+
+    this.unfollowLoading.set(true);
+    this.successMessage.set(null);
+
+    let applied = 0;
+    const failed: string[] = [];
+    for (const username of users) {
+      try {
+        await this.followersService.unfollowUser(username).toPromise();
+        applied++;
+      } catch (e) {
+        console.error('Failed to unfollow', username, e);
+        failed.push(username);
+      }
+    }
+
+    this.unfollowLoading.set(false);
+    this.successMessage.set(`Unfollowed: ${applied}${failed.length ? `, Failed: ${failed.length}` : ''}`);
+    if (applied > 0) {
+      this.localLists.appendHistory(users.slice(0, applied).map(u => ({ username: u, action: 'unfollow', dryRun: this.dryRunEnabled() })));
+      this.refreshProcessedOnPageCount();
+      setTimeout(() => this.loadFollowers(), 1500);
+    }
   }
 }

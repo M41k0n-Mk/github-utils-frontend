@@ -94,7 +94,6 @@
         <button class="btn btn-danger" (click)="unfollowSelected()" [disabled]="selected().size === 0 || unfollowLoading()">
           Unfollow selected ({{ selected().size }})
         </button>
-        <button class="btn btn-primary" (click)="saveSelectionAsList()" [disabled]="selected().size === 0">Save list</button>
         <button class="btn btn-danger accent" (click)="openConfirmModal()" [disabled]="followers().length === 0">
           <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -173,6 +172,48 @@
         <span class="processed-badge" title="Already unfollowed on this device (local history)">Processed on page: {{ processedOnPageCount() }}</span>
         <button class="btn" (click)="undoRecent(true)" [disabled]="selected().size === 0 || unfollowLoading()">Undo (selected, 60m)</button>
         <button class="btn" (click)="undoRecent(false)" [disabled]="unfollowLoading()">Undo (all, 60m)</button>
+      </div>
+    </div>
+  }
+
+  <!-- Active List Management Section -->
+  @if (activeList()) {
+    <div class="active-list-section">
+      <h3>Managing List: {{ activeList()!.name }}</h3>
+      <div class="active-list-controls">
+        <button class="btn btn-secondary" (click)="selectAllActive()">Select all</button>
+        <button class="btn btn-secondary" (click)="clearActiveSelection()" [disabled]="activeList()!.selected.size === 0">Clear selection ({{ activeList()!.selected.size }})</button>
+        <button class="btn btn-success" (click)="followSelectedFromActive()" [disabled]="activeList()!.selected.size === 0 || unfollowLoading()">
+          Follow selected ({{ activeList()!.selected.size }})
+        </button>
+        <button class="btn btn-danger" (click)="unfollowSelectedFromActive()" [disabled]="activeList()!.selected.size === 0 || unfollowLoading()">
+          Unfollow selected ({{ activeList()!.selected.size }})
+        </button>
+      </div>
+
+      <div class="active-list-users">
+        @for (user of activeList()!.users; track user.login) {
+          <div class="user-card" [class.selected]="activeList()!.selected.has(user.login)" (click)="toggleActiveSelection(user.login)">
+            <div class="user-avatar-placeholder">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="avatar-icon">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
+            <div class="user-info">
+              <a [href]="user.html_url || 'https://github.com/' + user.login" target="_blank" class="user-link" (click)="$event.stopPropagation()">
+                {{ user.login }}
+              </a>
+            </div>
+            @if (activeList()!.selected.has(user.login)) {
+              <div class="selection-indicator">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="check-icon">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+            }
+          </div>
+        }
       </div>
     </div>
   }
