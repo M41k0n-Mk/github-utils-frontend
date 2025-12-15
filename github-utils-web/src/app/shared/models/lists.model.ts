@@ -14,4 +14,5 @@ export interface HistoryEntry {
   action: HistoryAction;
   timestamp: string; // ISO
   sourceListId?: string;
+  dryRun?: boolean; // Optional for local, required for backend
 }
