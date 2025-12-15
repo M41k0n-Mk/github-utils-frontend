@@ -163,7 +163,8 @@
       <h3>List Management</h3>
       <div class="action-buttons">
         <button class="btn" (click)="exportData()">Export</button>
-        <button class="btn" (click)="importData()">Import</button>
+        <button class="btn" (click)="importFromDatabase()">Importar do Backend</button>
+        <button class="btn" (click)="importFromLocal()">Importar do Local</button>
         <label class="toggle-inline" title="Pula usuários que já foram unfollow (com base no histórico local/servidor) ao aplicar listas.">
           <input type="checkbox" [checked]="skipProcessed()" (change)="skipProcessed.set($any($event.target).checked)" />
           Skip already unfollowed
