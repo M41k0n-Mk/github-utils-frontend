@@ -162,7 +162,6 @@
     <div class="management-actions">
       <h3>List Management</h3>
       <div class="action-buttons">
-        <button class="btn btn-primary" (click)="applySavedList()" [disabled]="savedLists().length === 0 || unfollowLoading()">Apply list</button>
         <button class="btn" (click)="exportData()">Export</button>
         <button class="btn" (click)="importData()">Import</button>
         <label class="toggle-inline" title="Pula usuários que já foram unfollow (com base no histórico local/servidor) ao aplicar listas.">

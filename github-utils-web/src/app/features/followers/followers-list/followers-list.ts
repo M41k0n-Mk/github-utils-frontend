@@ -231,34 +231,6 @@ export class FollowersList implements OnInit {
 
   // Lists & history wiring (local fallback)
 
-  protected async applySavedList(): Promise<void> {
-    console.log('Apply list clicked, savedLists:', this.savedLists());
-    let lists = this.savedLists();
-    if (lists.length === 0) {
-      const choice = window.confirm('No saved lists found. Would you like to import one?');
-      if (choice) {
-        this.importData();
-        return;
-      } else {
-        return;
-      }
-    }
-    const options = lists.map((l, i) => `${i+1}) ${l.name} (${l.items.length})`).join('\n');
-    const input = window.prompt(`Choose a list to manage (follow/unfollow):\n${options}\nEnter the number:`, '1');
-    if (!input) return;
-    const idx = parseInt(input, 10) - 1;
-    if (isNaN(idx) || idx < 0 || idx >= lists.length) {
-      alert('Invalid selection.');
-      return;
-    }
-    const list = lists[idx];
-
-    // Set as active list for management instead of applying directly
-    const users = list.items.map((username: string) => ({ login: username, avatar_url: '', html_url: '' }));
-    this.activeList.set({ name: list.name, users, selected: new Set() });
-    this.successMessage.set(`"${list.name}" loaded for management. Select users and use Follow/Unfollow buttons.`);
-  }
-
   protected async exportData(): Promise<void> {
     const selectedUsers = Array.from(this.selected());
     if (selectedUsers.length === 0) {
