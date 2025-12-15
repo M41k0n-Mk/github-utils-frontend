@@ -237,6 +237,7 @@ export class FollowersList implements OnInit {
     const name = window.prompt('List name:', `selection-${new Date().toISOString().slice(0,16)}`);
     if (!name) return;
     try {
+      console.log('Attempting to save list to backend...');
       // Try to save to backend first
       const backendList = await firstValueFrom(this.listsService.createList(name, users));
       // Also save locally as fallback
@@ -257,10 +258,15 @@ export class FollowersList implements OnInit {
   }
 
   protected async applySavedList(): Promise<void> {
-    const lists = this.savedLists();
+    let lists = this.savedLists();
     if (lists.length === 0) {
-      alert('No saved lists found. Save a list first.');
-      return;
+      const choice = window.confirm('No saved lists found. Would you like to import one?');
+      if (choice) {
+        this.importData();
+        return;
+      } else {
+        return;
+      }
     }
     const options = lists.map((l, i) => `${i+1}) ${l.name} (${l.items.length})`).join('\n');
     const input = window.prompt(`Choose a list to apply (unfollow):\n${options}\nEnter the number:`, '1');
@@ -273,7 +279,12 @@ export class FollowersList implements OnInit {
     const list = lists[idx];
 
     const skip = this.skipProcessed();
-    const history = this.localLists.getHistory().filter(h => h.action === 'unfollow');
+    // Prefer backend history for consistency, fallback to local
+    let history: HistoryEntry[] = this.backendHistory().filter(h => h.action === 'unfollow');
+    if (history.length === 0) {
+      const localHistory = this.localLists.getHistory().filter(h => h.action === 'unfollow');
+      history = localHistory.map(h => ({ ...h, dryRun: h.dryRun ?? false }));
+    }
     const processed = new Set(history.map(h => h.username));
 
     const toProcess = skip ? list.items.filter(u => !processed.has(u)) : list.items;
@@ -353,9 +364,65 @@ export class FollowersList implements OnInit {
   }
 
   protected importData(): void {
-    const json = window.prompt('Paste the JSON exported previously:');
-    if (!json) return;
+    const choice = window.prompt('Choose import method:\n1) Paste JSON\n2) Upload CSV/JSON file\nEnter 1 or 2:', '1');
+    if (!choice) return;
+
+    if (choice === '1') {
+      const json = window.prompt('Paste the JSON exported previously:');
+      if (!json) return;
+      this.performImport(json);
+    } else if (choice === '2') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,.csv';
+      input.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target?.result as string;
+          if (file.name.endsWith('.csv')) {
+            // Parse CSV to JSON
+            const lines = content.split('\n').filter(l => l.trim());
+            if (lines.length < 2) {
+              alert('Invalid CSV format');
+              return;
+            }
+            const headers = lines[0].split(',');
+            const items = lines.slice(1).map(line => {
+              const values = line.split(',');
+              return values[0]?.trim() || '';
+            }).filter(u => u);
+            const json = JSON.stringify({ lists: [{ name: file.name.replace('.csv', ''), items }], history: [] });
+            this.performImport(json);
+          } else {
+            this.performImport(content);
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    } else {
+      alert('Invalid choice');
+    }
+  }
+
+  private performImport(json: string): void {
     try {
+      // Try to import to backend first (if it's a list)
+      const parsed = JSON.parse(json);
+      if (parsed.lists && Array.isArray(parsed.lists)) {
+        // Import lists to backend
+        parsed.lists.forEach(async (list: any) => {
+          try {
+            await firstValueFrom(this.listsService.createList(list.name, list.items));
+          } catch (e) {
+            console.warn('Failed to import list to backend, saving locally', e);
+            this.localLists.saveList(list.name, list.items);
+          }
+        });
+      }
+      // Always import locally as fallback
       this.localLists.importAll(json);
       this.refreshSavedLists();
       this.refreshProcessedOnPageCount();
