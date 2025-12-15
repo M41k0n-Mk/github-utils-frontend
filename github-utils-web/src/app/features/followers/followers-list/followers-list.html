@@ -95,16 +95,6 @@
           Unfollow selected ({{ selected().size }})
         </button>
         <button class="btn btn-primary" (click)="saveSelectionAsList()" [disabled]="selected().size === 0">Save list</button>
-        <button class="btn btn-primary" (click)="applySavedList()" [disabled]="savedLists().length === 0 || unfollowLoading()">Apply list</button>
-        <button class="btn" (click)="exportData()">Export</button>
-        <button class="btn" (click)="importData()">Import</button>
-        <label class="toggle-inline" title="Pula usuários que já foram unfollow (com base no histórico local/servidor) ao aplicar listas.">
-          <input type="checkbox" [checked]="skipProcessed()" (change)="skipProcessed.set($any($event.target).checked)" />
-          Skip already unfollowed
-        </label>
-        <span class="processed-badge" title="Already unfollowed on this device (local history)">Processed on page: {{ processedOnPageCount() }}</span>
-        <button class="btn" (click)="undoRecent(true)" [disabled]="selected().size === 0 || unfollowLoading()">Undo (selected, 60m)</button>
-        <button class="btn" (click)="undoRecent(false)" [disabled]="unfollowLoading()">Undo (all, 60m)</button>
         <button class="btn btn-danger accent" (click)="openConfirmModal()" [disabled]="followers().length === 0">
           <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -165,6 +155,25 @@
           </a>
         </div>
       }
+    </div>
+  }
+
+  <!-- Management Actions (always visible) -->
+  @if (!loading()) {
+    <div class="management-actions">
+      <h3>List Management</h3>
+      <div class="action-buttons">
+        <button class="btn btn-primary" (click)="applySavedList()" [disabled]="savedLists().length === 0 || unfollowLoading()">Apply list</button>
+        <button class="btn" (click)="exportData()">Export</button>
+        <button class="btn" (click)="importData()">Import</button>
+        <label class="toggle-inline" title="Pula usuários que já foram unfollow (com base no histórico local/servidor) ao aplicar listas.">
+          <input type="checkbox" [checked]="skipProcessed()" (change)="skipProcessed.set($any($event.target).checked)" />
+          Skip already unfollowed
+        </label>
+        <span class="processed-badge" title="Already unfollowed on this device (local history)">Processed on page: {{ processedOnPageCount() }}</span>
+        <button class="btn" (click)="undoRecent(true)" [disabled]="selected().size === 0 || unfollowLoading()">Undo (selected, 60m)</button>
+        <button class="btn" (click)="undoRecent(false)" [disabled]="unfollowLoading()">Undo (all, 60m)</button>
+      </div>
     </div>
   }
 

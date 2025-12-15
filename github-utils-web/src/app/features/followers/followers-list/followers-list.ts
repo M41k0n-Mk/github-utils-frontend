@@ -258,6 +258,7 @@ export class FollowersList implements OnInit {
   }
 
   protected async applySavedList(): Promise<void> {
+    console.log('Apply list clicked, savedLists:', this.savedLists());
     let lists = this.savedLists();
     if (lists.length === 0) {
       const choice = window.confirm('No saved lists found. Would you like to import one?');
