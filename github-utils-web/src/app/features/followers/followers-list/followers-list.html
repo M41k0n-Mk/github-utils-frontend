@@ -89,7 +89,7 @@
           Dry‑run
         </label>
 
-        <button class="btn btn-secondary" (click)="selectAllOnPage()">Select page</button>
+        <button class="btn btn-secondary" (click)="selectAllOnPage()">Select all on page</button>
         <button class="btn btn-secondary" (click)="clearSelection()" [disabled]="selected().size === 0">Clear selection ({{ selected().size }})</button>
         <button class="btn btn-danger" (click)="unfollowSelected()" [disabled]="selected().size === 0 || unfollowLoading()">
           Unfollow selected ({{ selected().size }})

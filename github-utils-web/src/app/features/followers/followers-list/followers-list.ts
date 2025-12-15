@@ -7,6 +7,8 @@ import { firstValueFrom } from 'rxjs';
 import { LocalListsService } from '../../../shared/services/local-lists.service';
 import { SavedList } from '../../../shared/models/lists.model';
 import { DryRunService } from '../../../shared/services/dry-run.service';
+import { ListsService } from '../../../shared/services/lists.service';
+import { HistoryService, HistoryEntry } from '../../../shared/services/history.service';
 
 @Component({
   selector: 'app-followers-list',
@@ -37,8 +39,9 @@ export class FollowersList implements OnInit {
   protected readonly savedLists = signal<SavedList[]>([]);
   protected readonly skipProcessed = signal<boolean>(true);
   protected readonly processedOnPageCount = signal<number>(0);
+  protected readonly backendHistory = signal<HistoryEntry[]>([]);
 
-  constructor(private followersService: FollowersService, private localLists: LocalListsService, private dryRun: DryRunService) {}
+  constructor(private followersService: FollowersService, private localLists: LocalListsService, private dryRun: DryRunService, private listsService: ListsService, private historyService: HistoryService) {}
 
   ngOnInit(): void {
     this.refreshSavedLists();
@@ -46,6 +49,16 @@ export class FollowersList implements OnInit {
     this.dryRun.status().subscribe((enabled) => {
       this.dryRunEnabled.set(enabled);
       this.dryRun.enabled.set(enabled);
+    });
+    // Fetch backend history for consistency
+    this.historyService.getHistory().subscribe({
+      next: (history) => {
+        this.backendHistory.set(history);
+      },
+      error: (err) => {
+        console.warn('Failed to load backend history, using local fallback', err);
+        this.backendHistory.set([]);
+      }
     });
     this.loadFollowers();
   }
@@ -61,7 +74,12 @@ export class FollowersList implements OnInit {
 
   private refreshProcessedOnPageCount(): void {
     try {
-      const history = this.localLists.getHistory().filter(h => h.action === 'unfollow');
+      // Prefer backend history for consistency, fallback to local
+      let history: HistoryEntry[] = this.backendHistory().filter(h => h.action === 'unfollow');
+      if (history.length === 0) {
+        const localHistory = this.localLists.getHistory().filter(h => h.action === 'unfollow');
+        history = localHistory.map(h => ({ ...h, dryRun: h.dryRun ?? false }));
+      }
       const set = new Set(history.map(h => h.username));
       const count = this.followers().filter(u => set.has(u.login)).length;
       this.processedOnPageCount.set(count);
@@ -177,7 +195,7 @@ export class FollowersList implements OnInit {
         await this.followersService.unfollowUser(username).toPromise();
       }
       // Append to local history
-      this.localLists.appendHistory(users.map(u => ({ username: u, action: 'unfollow' })));
+      this.localLists.appendHistory(users.map(u => ({ username: u, action: 'unfollow', dryRun: this.dryRunEnabled() })));
       this.refreshProcessedOnPageCount();
 
       this.successMessage.set(`Unfollowed ${users.length} user(s)`);
@@ -254,7 +272,7 @@ export class FollowersList implements OnInit {
     // Register in local history for successfully applied
     const successful = toProcess.filter(u => !failed.includes(u));
     if (successful.length > 0) {
-      this.localLists.appendHistory(successful.map(u => ({ username: u, action: 'unfollow', sourceListId: list.id })));
+      this.localLists.appendHistory(successful.map(u => ({ username: u, action: 'unfollow', sourceListId: list.id, dryRun: this.dryRunEnabled() })));
     }
 
     this.unfollowLoading.set(false);
@@ -265,15 +283,17 @@ export class FollowersList implements OnInit {
 
   protected async exportData(): Promise<void> {
     try {
-      const json = this.localLists.exportAll();
-      if (navigator.clipboard && (window as any).isSecureContext !== false) {
-        await navigator.clipboard.writeText(json);
-        alert('Lists & history exported to clipboard as JSON.');
-      } else {
-        // Fallback: prompt with JSON to copy manually
-        window.prompt('Copy the JSON below:', json);
-      }
-    } catch (e:any) {
+      const blob = await firstValueFrom(this.listsService.exportAllLists('json'));
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'lists-export.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      this.successMessage.set('Lists exported successfully.');
+    } catch (e: any) {
       console.error('Export failed', e);
       this.error.set(e?.message || 'Export failed');
     }
@@ -325,7 +345,7 @@ export class FollowersList implements OnInit {
     // Log follow operations to local history
     const successful = history.map(h => h.username).filter(u => !failed.includes(u));
     if (successful.length > 0) {
-      this.localLists.appendHistory(successful.map(u => ({ username: u, action: 'follow' })));
+      this.localLists.appendHistory(successful.map(u => ({ username: u, action: 'follow', dryRun: this.dryRunEnabled() })));
     }
 
     this.unfollowLoading.set(false);
