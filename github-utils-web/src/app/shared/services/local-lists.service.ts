@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { SavedList, HistoryEntry, HistoryAction } from '../models/lists.model';
 
 function uuid(): string {
@@ -10,12 +11,16 @@ export class LocalListsService {
   private listsKey = 'gh_utils_saved_lists_v1';
   private historyKey = 'gh_utils_history_v1';
 
+  constructor(@Inject(PLATFORM_ID) private platformId: Object) {}
+
   getLists(): SavedList[] {
+    if (!isPlatformBrowser(this.platformId)) return [];
     const raw = localStorage.getItem(this.listsKey);
     return raw ? JSON.parse(raw) as SavedList[] : [];
   }
 
   saveList(name: string, items: string[], existingId?: string): SavedList {
+    if (!isPlatformBrowser(this.platformId)) return { id: '', name, items: [], createdAt: '', updatedAt: '' };
     const now = new Date().toISOString();
     const lists = this.getLists();
 
@@ -34,6 +39,7 @@ export class LocalListsService {
   }
 
   deleteList(id: string): void {
+    if (!isPlatformBrowser(this.platformId)) return;
     const lists = this.getLists().filter(l => l.id !== id);
     localStorage.setItem(this.listsKey, JSON.stringify(lists));
   }
@@ -44,11 +50,13 @@ export class LocalListsService {
 
   // History
   getHistory(): HistoryEntry[] {
+    if (!isPlatformBrowser(this.platformId)) return [];
     const raw = localStorage.getItem(this.historyKey);
     return raw ? JSON.parse(raw) as HistoryEntry[] : [];
   }
 
   appendHistory(entries: Omit<HistoryEntry, 'id' | 'timestamp'>[]): void {
+    if (!isPlatformBrowser(this.platformId)) return;
     const now = new Date().toISOString();
     const existing = this.getHistory();
     const newEntries: HistoryEntry[] = entries.map(e => ({ id: uuid(), timestamp: now, ...e }));
@@ -64,6 +72,7 @@ export class LocalListsService {
   }
 
   importAll(json: string): void {
+    if (!isPlatformBrowser(this.platformId)) return;
     const parsed = JSON.parse(json);
     if (parsed?.lists) {
       localStorage.setItem(this.listsKey, JSON.stringify(parsed.lists));

@@ -40,6 +40,7 @@ export class FollowersList implements OnInit {
   protected readonly skipProcessed = signal<boolean>(true);
   protected readonly processedOnPageCount = signal<number>(0);
   protected readonly backendHistory = signal<HistoryEntry[]>([]);
+  protected readonly backendLists = signal<any[]>([]);
 
   constructor(private followersService: FollowersService, private localLists: LocalListsService, private dryRun: DryRunService, private listsService: ListsService, private historyService: HistoryService) {}
 
@@ -60,12 +61,28 @@ export class FollowersList implements OnInit {
         this.backendHistory.set([]);
       }
     });
+    // Fetch backend lists
+    this.listsService.getLists().subscribe({
+      next: (lists) => {
+        this.backendLists.set(lists);
+      },
+      error: (err) => {
+        console.warn('Failed to load backend lists, using local fallback', err);
+        this.backendLists.set([]);
+      }
+    });
     this.loadFollowers();
   }
 
   private refreshSavedLists(): void {
     try {
-      this.savedLists.set(this.localLists.getLists());
+      // Prefer backend lists for persistence, fallback to local
+      const backend = this.backendLists();
+      if (backend.length > 0) {
+        this.savedLists.set(backend);
+      } else {
+        this.savedLists.set(this.localLists.getLists());
+      }
     } catch (e) {
       console.error('Failed to load saved lists', e);
       this.savedLists.set([]);
@@ -211,7 +228,7 @@ export class FollowersList implements OnInit {
   }
 
   // Lists & history wiring (local fallback)
-  protected saveSelectionAsList(): void {
+  protected async saveSelectionAsList(): Promise<void> {
     const users = Array.from(this.selected());
     if (users.length === 0) {
       alert('No users selected to save.');
@@ -220,12 +237,22 @@ export class FollowersList implements OnInit {
     const name = window.prompt('List name:', `selection-${new Date().toISOString().slice(0,16)}`);
     if (!name) return;
     try {
-      const list = this.localLists.saveList(name, users);
+      // Try to save to backend first
+      const backendList = await firstValueFrom(this.listsService.createList(name, users));
+      // Also save locally as fallback
+      this.localLists.saveList(name, users);
       this.refreshSavedLists();
-      this.successMessage.set(`Saved list "${list.name}" with ${list.items.length} items.`);
-    } catch (e:any) {
-      console.error('Failed to save list', e);
-      this.error.set(e?.message || 'Failed to save list');
+      this.successMessage.set(`Saved list "${backendList.name}" with ${backendList.items.length} items.`);
+    } catch (e: any) {
+      console.error('Failed to save list to backend, saving locally', e);
+      // Fallback to local
+      try {
+        const list = this.localLists.saveList(name, users);
+        this.refreshSavedLists();
+        this.successMessage.set(`Saved list locally "${list.name}" with ${list.items.length} items.`);
+      } catch (localError: any) {
+        this.error.set(localError?.message || 'Failed to save list');
+      }
     }
   }
 
@@ -282,17 +309,43 @@ export class FollowersList implements OnInit {
   }
 
   protected async exportData(): Promise<void> {
+    const selectedUsers = Array.from(this.selected());
+    if (selectedUsers.length === 0) {
+      alert('No users selected to export.');
+      return;
+    }
+
+    const format = window.prompt('Choose export format (csv or json):', 'csv')?.toLowerCase();
+    if (!format || (format !== 'csv' && format !== 'json')) {
+      alert('Invalid format. Please choose csv or json.');
+      return;
+    }
+
     try {
-      const blob = await firstValueFrom(this.listsService.exportAllLists('json'));
+      let content: string;
+      let mimeType: string;
+      let filename: string;
+
+      if (format === 'csv') {
+        content = 'login\n' + selectedUsers.join('\n');
+        mimeType = 'text/csv';
+        filename = 'selected-users.csv';
+      } else {
+        content = JSON.stringify({ users: selectedUsers }, null, 2);
+        mimeType = 'application/json';
+        filename = 'selected-users.json';
+      }
+
+      const blob = new Blob([content], { type: mimeType });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'lists-export.json';
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      this.successMessage.set('Lists exported successfully.');
+      this.successMessage.set(`${selectedUsers.length} users exported successfully.`);
     } catch (e: any) {
       console.error('Export failed', e);
       this.error.set(e?.message || 'Export failed');
