@@ -36,7 +36,8 @@ export class FollowersList implements OnInit {
   protected readonly showConfirmModal = signal<boolean>(false);
   protected readonly unfollowLoading = signal<boolean>(false);
   protected readonly successMessage = signal<string | null>(null);
-  protected readonly savedLists = signal<SavedList[]>([]);
+  protected readonly savedLists = signal<SavedList[]>([]); // backend
+  protected readonly localListsSignal = signal<SavedList[]>([]);
   protected readonly skipProcessed = signal<boolean>(true);
   protected readonly processedOnPageCount = signal<number>(0);
   protected readonly backendHistory = signal<HistoryEntry[]>([]);
@@ -48,6 +49,7 @@ export class FollowersList implements OnInit {
 
   ngOnInit(): void {
     this.refreshSavedLists();
+    this.refreshLocalLists();
     // Fetch dry-run status from server at startup
     this.dryRun.status().subscribe((enabled) => {
       this.dryRunEnabled.set(enabled);
@@ -76,18 +78,23 @@ export class FollowersList implements OnInit {
     this.loadFollowers();
   }
 
+
   private refreshSavedLists(): void {
     try {
-      // Prefer backend lists for persistence, fallback to local
       const backend = this.backendLists();
-      if (backend.length > 0) {
-        this.savedLists.set(backend);
-      } else {
-        this.savedLists.set(this.localLists.getLists());
-      }
+      this.savedLists.set(backend);
     } catch (e) {
-      console.error('Failed to load saved lists', e);
+      console.error('Failed to load backend lists', e);
       this.savedLists.set([]);
+    }
+  }
+
+  private refreshLocalLists(): void {
+    try {
+      this.localListsSignal.set(this.localLists.getLists());
+    } catch (e) {
+      console.error('Failed to load local lists', e);
+      this.localListsSignal.set([]);
     }
   }
 
@@ -350,14 +357,14 @@ export class FollowersList implements OnInit {
     }
   }
 
-  private async importFromDatabase(): Promise<void> {
+  protected async importFromDatabase(): Promise<void> {
     let lists = this.savedLists();
     if (lists.length === 0) {
-      alert('No saved lists found in database.');
+      alert('No saved lists found no backend.');
       return;
     }
     const options = lists.map((l, i) => `${i+1}) ${l.name} (${l.count || 0} users)`).join('\n');
-    const input = window.prompt(`Choose a list to import for management:\n${options}\nEnter the number:`, '1');
+    const input = window.prompt(`Escolha uma lista do BACKEND para importar:\n${options}\nDigite o número:`, '1');
     if (!input) return;
     const idx = parseInt(input, 10) - 1;
     if (isNaN(idx) || idx < 0 || idx >= lists.length) {
@@ -365,19 +372,39 @@ export class FollowersList implements OnInit {
       return;
     }
     const selectedList = lists[idx];
-
     try {
-      // Fetch full list details from backend
       const fullList = await firstValueFrom(this.listsService.getList(selectedList.id));
-
-      // Set as active list for management
       const users = fullList.items.map((username: string) => ({ login: username, avatar_url: '', html_url: '' }));
       this.activeList.set({ name: fullList.name, users, selected: new Set() });
-      this.successMessage.set(`"${fullList.name}" imported from database for management.`);
+      this.successMessage.set(`"${fullList.name}" importada do backend para gerenciamento.`);
     } catch (e: any) {
       console.error('Failed to load list details', e);
       this.error.set(e?.message || 'Failed to load list details');
     }
+  }
+
+  protected importFromLocal(): void {
+    let lists = this.localListsSignal();
+    if (lists.length === 0) {
+      alert('Nenhuma lista local encontrada.');
+      return;
+    }
+    const options = lists.map((l, i) => `${i+1}) ${l.name} (${l.items?.length || 0} users)`).join('\n');
+    const input = window.prompt(`Escolha uma lista LOCAL para importar:\n${options}\nDigite o número:`, '1');
+    if (!input) return;
+    const idx = parseInt(input, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= lists.length) {
+      alert('Seleção inválida.');
+      return;
+    }
+    const list = lists[idx];
+    if (!list.items) {
+      alert('Lista local sem usuários.');
+      return;
+    }
+    const users = list.items.map((username: string) => ({ login: username, avatar_url: '', html_url: '' }));
+    this.activeList.set({ name: list.name, users, selected: new Set() });
+    this.successMessage.set(`"${list.name}" importada do armazenamento local para gerenciamento.`);
   }
 
   private performImport(json: string): void {
