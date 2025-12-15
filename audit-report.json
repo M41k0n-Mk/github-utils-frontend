@@ -1,0 +1,531 @@
+{
+  "summary": {
+    "totalEndpoints": 28,
+    "implemented": 28,
+    "missing": 0,
+    "mismatched": 0
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health-check simples da API.",
+      "frontendCalls": [
+        {
+          "file": "src/app/features/followers/followers.service.ts",
+          "line": 95,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "200 JSON: { status: \"UP\", service: \"GitHub Utils API\" }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/non-followers",
+      "description": "Lista completa (não paginada) de usuários que você segue e não te seguem de volta.",
+      "frontendCalls": [
+        {
+          "file": "src/app/features/followers/followers.service.ts",
+          "line": 29,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "200 JSON: { count: number, users: Array<{ login: string, html_url: string }> }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/non-followers/preview",
+      "description": "Consulta paginada de não-seguidores; se format for informado, exporta a página como arquivo CSV/JSON.",
+      "frontendCalls": [
+        {
+          "file": "src/app/features/followers/followers.service.ts",
+          "line": 44,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "query": ["page (int=1)", "size (int=25)", "format? (csv|json)"],
+        "response": "200 sem format: { totalFollowers, totalFollowing, totalNonFollowers, page, size, users: User[], dryRunEnabled }; 200 com format: arquivo (CSV/JSON) + headers Content-Type e Content-Disposition"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/unfollow-non-followers",
+      "description": "Executa unfollow em massa de não-seguidores. Respeita dry-run.",
+      "frontendCalls": [
+        {
+          "file": "src/app/features/followers/followers.service.ts",
+          "line": 58,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "200 JSON: { message: string, warning: string }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/user/following",
+      "description": "Retorna página da sua lista de 'following' direto do GitHub (sem persistir).",
+      "frontendCalls": [
+        {
+          "file": "src/app/features/followers/followers.service.ts",
+          "line": 87,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "query": ["page (1)", "size (30)"],
+        "response": "200 JSON: { page, size, users: User[] }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/user/following/{username}",
+      "description": "Desfaz follow (unfollow) de um usuário; respeita dry-run.",
+      "frontendCalls": [
+        {
+          "file": "src/app/features/followers/followers.service.ts",
+          "line": 72,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "200 JSON: { message: \"Unfollowed <username>\", dryRun: boolean }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/user/following/{username}",
+      "description": "Segue um usuário; respeita dry-run.",
+      "frontendCalls": [
+        {
+          "file": "src/app/features/followers/followers.service.ts",
+          "line": 80,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "200 JSON: { message: \"Followed <username>\", dryRun: boolean }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/user/followers",
+      "description": "Retorna página de quem te segue (followers) direto do GitHub.",
+      "frontendCalls": [
+        {
+          "file": "src/app/features/followers/followers.service.ts",
+          "line": 91,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "query": ["page (1)", "size (30)"],
+        "response": "200 JSON: { page, size, users: User[] }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/lists",
+      "description": "Lista listas nomeadas com metadados e contagem de itens (não inclui os itens aqui).",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/lists.service.ts",
+          "line": 15,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "200 JSON: Array<{ id, name, createdAt, updatedAt, count }>"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/lists",
+      "description": "Cria nova lista com nome e itens (usernames) iniciais.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/lists.service.ts",
+          "line": 19,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "body": "{ name: string, items: string[] }",
+        "response": "201 JSON: { id, name, items, createdAt, updatedAt }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/lists/{id}",
+      "description": "Detalhes completos da lista, incluindo items.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/lists.service.ts",
+          "line": 25,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "200 JSON: { id, name, createdAt, updatedAt, items: string[] }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/lists/{id}",
+      "description": "Atualiza name e/ou substitui completamente items.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/lists.service.ts",
+          "line": 29,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "body": "{ name?: string, items?: string[] }",
+        "response": "200 JSON: lista atualizada"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/lists/{id}",
+      "description": "Remove a lista e seus itens.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/lists.service.ts",
+          "line": 37,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "204 No Content"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/lists/{id}/apply",
+      "description": "Aplica ação em lote (follow | unfollow) para todos os items da lista. skipProcessed=true usa o histórico para evitar repetir ações já efetivadas.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/lists.service.ts",
+          "line": 41,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "query": ["action (follow|unfollow)", "skipProcessed (boolean, default true)"],
+        "response": "200 JSON: { applied, skipped, details: Array<{ username, action, skippedReason? }>, dryRun }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/lists/{id}/export",
+      "description": "Exporta a lista como arquivo.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/lists.service.ts",
+          "line": 47,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "query": ["format (csv|json, default csv)"],
+        "response": "200 arquivo CSV (coluna login) ou JSON completo { id, name, createdAt, updatedAt, items }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/lists/export",
+      "description": "Exporta todas as listas completas (uso de portabilidade/auditoria).",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/lists.service.ts",
+          "line": 53,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "query": ["format=json"],
+        "response": "200 arquivo JSON (array de listas)"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/history",
+      "description": "Consulta histórico de follow/unfollow (inclui ações em dry-run com dryRun=1).",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/history.service.ts",
+          "line": 11,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "query": ["username?", "action? (follow|unfollow)", "since? (ISO-8601)"],
+        "response": "200 JSON: HistoryEntity[] ({ id, username, action, timestamp, sourceListId, dryRun })"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/history/export",
+      "description": "Exporta histórico filtrado para CSV/JSON.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/history.service.ts",
+          "line": 17,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "query": ["username?", "action?", "since?", "format (csv|json)"],
+        "response": "200 arquivo + headers Content-Type e Content-Disposition"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/import/refollow",
+      "description": "Importa usernames (CSV/JSON) e executa follow em lote. Preferir endpoint unificado abaixo.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/import.service.ts",
+          "line": 11,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "consumes": "text/plain (CSV com cabeçalho login opcional) ou application/json (array string)",
+        "response": "200 JSON: { received, applied, skipped, dryRun, details: Array<{ username, status, message? }> }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/import/exclude",
+      "description": "Importa usernames (CSV/JSON) e adiciona à lista de exclusão.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/import.service.ts",
+          "line": 17,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "consumes": "text/plain ou application/json",
+        "response": "200 JSON: { received, added }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/import/users",
+      "description": "Endpoint unificado; define action=refollow|exclude e skipProcessed (default true). Aceita multipart (file) ou body direto.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/import.service.ts",
+          "line": 23,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "query": ["action", "skipProcessed?"],
+        "consumes": "multipart/form-data | text/plain | application/json",
+        "response": "200 JSON: conforme ação (mesmos contratos dos legados)"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/dry-run/status",
+      "description": "Status do dry-run, descrição e timestamp da última mudança.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/dry-run.service.ts",
+          "line": 22,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "200 JSON: { enabled, description, lastChanged }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/dry-run/toggle",
+      "description": "Alterna o estado do dry-run.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/dry-run.service.ts",
+          "line": 30,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "200 JSON: { enabled, description, message }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/dry-run/enable",
+      "description": "Ativa explicitamente o dry-run.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/dry-run.service.ts",
+          "line": 26,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "200 JSON: { enabled: true|false, description, message }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/dry-run/disable",
+      "description": "Desativa explicitamente o dry-run.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/dry-run.service.ts",
+          "line": 34,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "response": "200 JSON: { enabled: true|false, description, message }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/undo",
+      "description": "Desfaz ações de unfollow recentes, refazendo follow com base no histórico; aceita janela por until (ISO) ou usa app.undo.defaultMinutes quando ausente; pode filtrar por usernames.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/undo.service.ts",
+          "line": 9,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "body": "{ until?: string, usernames?: string[], action?: \"unfollow\" } (somente unfollow é aceito)",
+        "response": "200 JSON: { refollowed: number, details: Array<{ username, timestamp }>, dryRun: boolean }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/filter/evaluate",
+      "description": "Aplica filtros sobre a sua página atual de 'following', enriquece dados (via REST/GraphQL) e retorna os que casam. Suporta export CSV/JSON.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/filter.service.ts",
+          "line": 11,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "query": ["page", "size", "inactiveDays?", "lastPushDays?", "followersLt?", "followersGt?", "reposLt?", "reposGt?", "languages? (multi)", "followsYou?", "contribLt?", "contribGt?", "format? (csv|json)"],
+        "response": "200 sem format: { totalCandidates, totalMatched, page, size, users: EnrichedUser[] }; 200 com format: arquivo CSV/JSON com os campos de EnrichedUser"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/filter/smart-suggest",
+      "description": "Preset de filtros (inativo > 180 dias AND followers < 50) sobre a página atual de 'following'.",
+      "frontendCalls": [
+        {
+          "file": "src/app/shared/services/filter.service.ts",
+          "line": 49,
+          "lib": "HttpClient"
+        }
+      ],
+      "contract": {
+        "query": ["page", "size"],
+        "response": "200 JSON: { totalCandidates, totalMatched, page, size, users }"
+      },
+      "status": "implemented",
+      "problems": [],
+      "fixHints": []
+    }
+  ]
+}

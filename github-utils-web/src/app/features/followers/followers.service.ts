@@ -23,6 +23,8 @@ export class FollowersService {
   private previewApiUrl = `${environment.apiUrl}/non-followers/preview`;
   private unfollowApiUrl = `${environment.apiUrl}/unfollow-non-followers`;
   private userFollowingApiUrl = `${environment.apiUrl}/user/following`;
+  private userFollowersApiUrl = `${environment.apiUrl}/user/followers`;
+  private healthApiUrl = `${environment.apiUrl}/health`;
 
   constructor(private http: HttpClient) {}
 
@@ -80,6 +82,29 @@ export class FollowersService {
     const url = `${this.userFollowingApiUrl}/${encodeURIComponent(username)}`;
     console.log('PUT (follow) →', url);
     return this.http.put<{ message: string }>(url, {})
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Get paginated following list */
+  getFollowing(page = 1, size = 30): Observable<{ page: number; size: number; users: Follower[] }> {
+    const url = `${this.userFollowingApiUrl}?page=${page}&size=${size}`;
+    console.log('GET following →', url);
+    return this.http.get<{ page: number; size: number; users: Follower[] }>(url)
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Get paginated followers list */
+  getUserFollowers(page = 1, size = 30): Observable<{ page: number; size: number; users: Follower[] }> {
+    const url = `${this.userFollowersApiUrl}?page=${page}&size=${size}`;
+    console.log('GET followers →', url);
+    return this.http.get<{ page: number; size: number; users: Follower[] }>(url)
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Health check */
+  getHealth(): Observable<{ status: string; service: string }> {
+    console.log('GET health →', this.healthApiUrl);
+    return this.http.get<{ status: string; service: string }>(this.healthApiUrl)
       .pipe(catchError(this.handleError));
   }
 
